@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body { width:100%; height:100%; overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#fff; }
+.page { position:absolute; top:0; left:0; width:100%; height:100%; display:none; flex-direction:column; }
+.page.active { display:flex; }
+.toast { position:fixed; bottom:140px; left:50%; transform:translateX(-50%) translateY(20px); background:rgba(0,0,0,0.75); color:#fff; padding:10px 22px; border-radius:20px; font-size:14px; opacity:0; transition:all 0.3s; z-index:100; pointer-events:none; }
+.toast.show { opacity:1; transform:translateX(-50%) translateY(0); pointer-events:auto; }
+.loading-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.85); display:none; align-items:center; justify-content:center; z-index:200; }
+.loading-overlay.active { display:flex; }
+.spinner { width:36px; height:36px; border:3px solid #E1E2EC; border-top-color:#5B7FFF; border-radius:50%; animation:spin 0.7s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.login-body { flex:1; display:flex; flex-direction:column; padding:0 28px; }
+.login-title { font-size:26px; font-weight:700; text-align:center; margin-top:72px; }
+.login-subtitle { font-size:15px; color:#888; text-align:center; margin-top:10px; }
+.input-section { margin-top:40px; }
+.input-label { font-size:13px; color:#5B7FFF; margin-bottom:6px; }
+.email-input { width:100%; border:2px solid #E0E0E0; border-radius:12px; padding:14px 16px; font-size:17px; outline:none; background:#fff; -webkit-appearance:none; transition:border-color 0.2s; }
+.email-input:focus { border-color:#5B7FFF; }
+.submit-area { display:flex; justify-content:flex-end; padding:16px 28px; }
+.submit-btn { width:52px; height:52px; border-radius:50%; background:#5B7FFF; color:#fff; border:none; font-size:22px; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+.back-arrow { width:44px; height:44px; display:flex; align-items:center; justify-content:center; font-size:26px; cursor:pointer; }
+.verify-body { flex:1; display:flex; flex-direction:column; align-items:center; padding:0 20px; }
+.verify-title { font-size:22px; font-weight:700; text-align:center; margin-top:24px; }
+.verify-subtitle { font-size:14px; color:#666; text-align:center; margin-top:10px; }
+.code-boxes { display:flex; gap:8px; margin-top:28px; }
+.code-box { width:42px; height:48px; border:2px solid #E0E0E0; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:22px; transition:border-color 0.15s; }
+.code-box.active { border-color:#E53935; }
+.code-box.filled { border-color:#5B7FFF; }
+.code-box.error { border-color:#E53935; animation:shake 0.35s; }
+@keyframes shake { 0%,100%{transform:translateX(0);} 20%{transform:translateX(-6px);} 40%{transform:translateX(6px);} 60%{transform:translateX(-4px);} 80%{transform:translateX(4px);} }
+.error-text { font-size:14px; color:#E53935; margin-top:12px; text-align:center; opacity:0; transition:opacity 0.2s; }
+.error-text.show { opacity:1; }
+.resend-link { font-size:14px; color:#5B7FFF; margin-top:16px; cursor:pointer; }
+.numpad { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; padding:8px 14px 16px; }
+.numpad-key { height:54px; background:#F5F5F5; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px; cursor:pointer; border:none; }
+.password-body { flex:1; display:flex; flex-direction:column; padding:0 28px; }
+.password-title { font-size:24px; font-weight:700; text-align:center; margin-top:80px; }
+.password-subtitle { font-size:15px; color:#888; text-align:center; margin-top:10px; }
+.password-input { width:100%; border:2px solid #E0E0E0; border-radius:12px; padding:14px 16px; font-size:17px; outline:none; background:#fff; -webkit-appearance:none; margin-bottom:14px; }
+.home-page { background:#F0F4F8; }
+.home-content { flex:1; overflow-y:auto; padding:16px 16px 90px; }
+.search-bar { display:flex; gap:10px; margin-bottom:16px; }
+.search-input { flex:1; height:44px; background:#fff; border-radius:12px; border:none; padding:0 16px; font-size:15px; outline:none; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+.search-input::placeholder { color:#999; }
+.filter-btn { height:44px; padding:0 16px; background:#fff; border-radius:12px; border:none; font-size:14px; color:#333; display:flex; align-items:center; gap:6px; box-shadow:0 1px 3px rgba(0,0,0,0.06); white-space:nowrap; }
+.filter-btn:active { background:#f0f0f0; }
+.section-title { font-size:18px; font-weight:700; margin:20px 0 12px; display:flex; align-items:center; justify-content:space-between; }
+.section-title .more { font-size:13px; color:#999; font-weight:400; }
+.movie-row { display:flex; gap:10px; overflow-x:auto; padding-bottom:4px; margin:0 -16px; padding-left:16px; padding-right:16px; -webkit-overflow-scrolling:touch; }
+.movie-row::-webkit-scrollbar { display:none; }
+.movie-card { flex-shrink:0; width:110px; }
+.movie-poster { width:110px; height:155px; border-radius:12px; background:#e0e4e8; display:flex; align-items:center; justify-content:center; color:#999; font-size:13px; margin-bottom:6px; }
+.movie-name { font-size:13px; color:#333; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.movie-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px 10px; }
+.movie-grid .movie-card { width:100%; }
+.movie-grid .movie-poster { width:100%; height:calc((100vw - 52px) / 3 * 1.4); }
+.empty-tip { text-align:center; color:#999; padding:40px 0; font-size:14px; }
+.category-chips { display:flex; gap:8px; margin-bottom:16px; overflow-x:auto; padding-bottom:2px; -webkit-overflow-scrolling:touch; }
+.category-chips::-webkit-scrollbar { display:none; }
+.chip { flex-shrink:0; padding:8px 16px; background:#fff; border-radius:20px; font-size:13px; color:#666; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
+.chip.active { background:#007AFF; color:#fff; }
+.banner-wrap { overflow:hidden; border-radius:16px; }
+.banner-row { display:flex; transition:transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1); }
+.banner-item { flex-shrink:0; width:100%; height:calc((100vw - 52px) * 9 / 16); max-height:240px; background:#e0e4e8 center/cover no-repeat; display:flex; align-items:flex-end; justify-content:flex-start; color:#fff; font-size:14px; padding:16px; text-shadow:0 2px 8px rgba(0,0,0,0.5); }
+.movie-poster { width:110px; height:155px; border-radius:12px; background:#e0e4e8 center/cover no-repeat; display:flex; align-items:center; justify-content:center; color:#999; font-size:13px; margin-bottom:6px; }
+.banner-dots { display:flex; justify-content:center; gap:6px; margin-top:12px; margin-bottom:16px; }
+.banner-dot { width:6px; height:6px; border-radius:50%; background:#ccc; transition:all 0.3s; }
+.banner-dot.active { width:18px; border-radius:3px; background:#007AFF; }
+.profile-header { background:linear-gradient(135deg, #5B7FFF 0%, #7B9BFF 100%); padding:30px 20px 40px; border-radius:0 0 24px 24px; color:#fff; display:flex; align-items:center; gap:14px; margin:-16px -16px 16px; }
+.profile-avatar { width:60px; height:60px; border-radius:50%; background:#fff center/cover no-repeat; flex-shrink:0; }
+.profile-info { flex:1; }
+.profile-name { font-size:18px; font-weight:600; margin-bottom:4px; }
+.profile-email { font-size:13px; opacity:0.85; }
+.profile-stats { display:flex; background:#fff; border-radius:16px; padding:16px 0; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
+.stat-item { flex:1; text-align:center; border-right:1px solid #f0f0f0; }
+.stat-item:last-child { border-right:none; }
+.stat-num { font-size:20px; font-weight:700; color:#333; }
+.stat-label { font-size:12px; color:#999; margin-top:2px; }
+.menu-list { background:#fff; border-radius:16px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
+.menu-item { display:flex; align-items:center; padding:14px 16px; border-bottom:1px solid #f5f5f5; cursor:pointer; }
+.menu-item:last-child { border-bottom:none; }
+.menu-item:active { background:#f9f9f9; }
+.menu-icon { width:22px; height:22px; margin-right:12px; color:#5B7FFF; flex-shrink:0; }
+.menu-text { flex:1; font-size:15px; color:#333; }
+.menu-arrow { color:#ccc; font-size:18px; }
+.md-card { background:#fff; border-radius:24px; padding:18px 20px; margin-bottom:12px; box-shadow:0 1px 2px rgba(0,0,0,0.06); }
+.md-card-title { font-size:17px; font-weight:600; margin-bottom:6px; }
+.md-card-subtitle { font-size:14px; color:#888; }
+.bottom-nav { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); width:calc(100% - 100px); max-width:340px; height:52px; background:rgba(255,255,255,0.65); -webkit-backdrop-filter:blur(24px) saturate(180%); backdrop-filter:blur(24px) saturate(180%); border-radius:26px; display:flex; align-items:center; justify-content:space-around; box-shadow:0 12px 40px rgba(0,0,0,0.15), 0 4px 12px rgba(0,0,0,0.06); z-index:50; padding:0 4px; border:1px solid rgba(255,255,255,0.5); overflow:visible; }
+.nav-item { flex:1; height:44px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; position:relative; z-index:2; transition:transform 0.2s; }
+.nav-item:active { transform:scale(0.9); }
+.nav-icon { width:22px; height:22px; margin-bottom:1px; color:#3C3C43; opacity:0.6; transition:all 0.25s; }
+.nav-label { font-size:10px; color:#3C3C43; opacity:0.6; transition:all 0.25s; font-weight:500; }
+.nav-item.active .nav-icon { color:#007AFF; opacity:1; transform:translateY(-1px); }
+.nav-item.active .nav-label { color:#007AFF; opacity:1; }
+.nav-slider { position:absolute; top:4px; left:0; width:0; height:44px; background:rgba(255,255,255,0.22); border-radius:22px; transition:left 0.35s cubic-bezier(0.25, 0.8, 0.25, 1), width 0.35s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1); z-index:3; box-shadow:inset 0 1px 0 rgba(255,255,255,0.7), inset 0 -1px 0 rgba(255,255,255,0.2), 0 2px 8px rgba(0,0,0,0.06); cursor:grab; user-select:none; -webkit-user-select:none; touch-action:none; transform-origin:center; border:1px solid rgba(255,255,255,0.55); }
+.nav-slider.zoom { transform:scale(1.4); transition:transform 0.1s ease-out; }
+.nav-slider.expanded { transform:scale(1.15); }
+.nav-slider:active { cursor:grabbing; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="loading-overlay" id="loading"><div class="spinner"></div></div>
+  <div class="toast" id="toast"></div>
+
+  <div id="loginPage" class="page active">
+    <div class="login-body">
+      <div class="login-title">邮箱登录</div>
+      <div class="login-subtitle">请输入您的邮箱地址</div>
+      <div class="input-section">
+        <div class="input-label">邮箱地址</div>
+        <input type="email" class="email-input" id="emailInput" placeholder="请输入邮箱" autocomplete="off">
+      </div>
+    </div>
+    <div class="submit-area"><button class="submit-btn" id="submitBtn">&rarr;</button></div>
+  </div>
+
+  <div id="verifyPage" class="page">
+    <div style="display:flex;align-items:center;padding:12px 8px 0;height:56px;">
+      <div class="back-arrow" id="backBtn">&larr;</div>
+    </div>
+    <div class="verify-body">
+      <div class="verify-title">查看您的信息</div>
+      <div class="verify-subtitle" id="verifySubtitle"></div>
+      <div class="code-boxes" id="codeBoxes"></div>
+      <div class="error-text" id="errorText"></div>
+      <div class="resend-link" id="resendBtn">没有收到验证码？重新发送</div>
+    </div>
+    <div class="numpad" id="verifyNumpad"></div>
+  </div>
+
+  <div id="passwordPage" class="page">
+    <div class="password-body">
+      <div class="password-title">设置密码</div>
+      <div class="password-subtitle">为您的账号设置安全密码</div>
+      <div class="password-section">
+        <input type="password" class="password-input" id="passwordInput" placeholder="输入密码（至少6位）">
+        <input type="password" class="password-input" id="confirmPasswordInput" placeholder="确认密码">
+      </div>
+    </div>
+    <div class="submit-area"><button class="submit-btn" id="passwordSubmitBtn">&rarr;</button></div>
+  </div>
+
+  <div id="homePage" class="page home-page">
+    <div class="home-content" id="homeContent"></div>
+    <div class="bottom-nav" id="bottomNav">
+      <div class="nav-slider" id="navSlider"></div>
+      <div class="nav-item active" data-page="home" data-index="0">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l9 8h-3v9h-4v-6h-4v6H6v-9H3l9-8z"/></svg>
+        <div class="nav-label">主页</div>
+      </div>
+      <div class="nav-item" data-page="favorite" data-index="1">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+        <div class="nav-label">收藏</div>
+      </div>
+      <div class="nav-item" data-page="settings" data-index="2">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+        <div class="nav-label">我的</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var EMAILJS_SERVICE='service_xvyoopg';
+  var EMAILJS_TEMPLATE='template_3a4i94q';
+  var EMAILJS_PUBLIC_KEY='obSLMQ90Bg1-DB-2d';
+  var EMAILJS_PRIVATE_KEY='9YNSU__q9lOzgEJeleJcY';
+
+  var currentEmail='', currentCode='', codeArr=['','','','','',''];
+  var users=JSON.parse(localStorage.getItem('tg_users_v2')||'[]');
+  var bridgeCallbacks = {};
+  var bridgeId = 0;
+
+  window.handleBridgeResult = function(id, result) {
+    if (bridgeCallbacks[id]) {
+      bridgeCallbacks[id](result);
+      delete bridgeCallbacks[id];
+    }
+  };
+
+  var pages={
+    login:document.getElementById('loginPage'),
+    verify:document.getElementById('verifyPage'),
+    password:document.getElementById('passwordPage'),
+    home:document.getElementById('homePage')
+  };
+
+  function setLoading(show){ document.getElementById('loading').classList.toggle('active', show); }
+  function showToast(msg){ var t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(function(){t.classList.remove('show');}, 2500); }
+
+  function switchPage(from, to){
+    from.style.animation='slideOut 0.28s';
+    setTimeout(function(){
+      from.classList.remove('active');
+      to.classList.add('active');
+      to.style.animation='slideIn 0.28s';
+      setTimeout(function(){to.style.animation='';}, 300);
+    }, 260);
+  }
+
+  function genCode(){ var c=''; for(var i=0;i<6;i++) c+=Math.floor(Math.random()*10); return c; }
+
+  // Send via JSBridge to Android native layer
+  function sendCode(email, code){
+    setLoading(true);
+    var payload = JSON.stringify({
+      service_id: EMAILJS_SERVICE,
+      template_id: EMAILJS_TEMPLATE,
+      user_id: EMAILJS_PUBLIC_KEY,
+      accessToken: EMAILJS_PRIVATE_KEY,
+      template_params: {
+        email: email,
+        code: code
+      }
+    });
+
+    var id = 'cb_' + (++bridgeId);
+    bridgeCallbacks[id] = function(result) {
+      setLoading(false);
+      if (result.success) {
+        showToast('验证码已发送，请查收邮箱');
+      } else {
+        showToast('发送失败(' + result.code + '): ' + result.response);
+      }
+    };
+
+    if (window.AndroidBridge && window.AndroidBridge.sendEmailJS) {
+      window.AndroidBridge.sendEmailJS(payload, id);
+    } else {
+      // Fallback to direct XHR if bridge not available
+      fallbackSend(payload);
+    }
+  }
+
+  function fallbackSend(payload) {
+    var xhr=new XMLHttpRequest();
+    xhr.open('POST', 'https://api.emailjs.com/api/v1.0/email/send', true);
+    xhr.setRequestHeader('Content-Type','application/json');
+    xhr.onreadystatechange=function(){
+      if(xhr.readyState===4){
+        setLoading(false);
+        if(xhr.status===200) showToast('验证码已发送');
+        else showToast('发送失败('+xhr.status+')');
+      }
+    };
+    xhr.onerror=function(){ setLoading(false); showToast('网络错误'); };
+    xhr.send(payload);
+  }
+
+  function checkLogin(){
+    var s=JSON.parse(localStorage.getItem('tg_session')||'null');
+    if(s && s.isLoggedIn && s.email){ currentEmail=s.email; showHome(); return true; }
+    return false;
+  }
+
+  function showHome(){
+    pages.login.classList.remove('active');
+    pages.verify.classList.remove('active');
+    pages.password.classList.remove('active');
+    pages.home.classList.add('active');
+    renderHome('home');
+  }
+
+  var cbWrap=document.getElementById('codeBoxes');
+  for(var i=0;i<6;i++){ var box=document.createElement('div'); box.className='code-box'; box.id='cb'+i; cbWrap.appendChild(box); }
+
+  function updateBoxes(){
+    var filled=0;
+    for(var i=0;i<6;i++){
+      var b=document.getElementById('cb'+i);
+      b.textContent=codeArr[i];
+      if(codeArr[i]){ b.className='code-box filled'; filled++; }
+      else if(i===filled) b.className='code-box active';
+      else b.className='code-box';
+    }
+    return filled;
+  }
+
+  function showError(msg){
+    var e=document.getElementById('errorText');
+    e.textContent=msg; e.classList.add('show');
+    for(var i=0;i<6;i++) document.getElementById('cb'+i).classList.add('error');
+    setTimeout(function(){ for(var i=0;i<6;i++) document.getElementById('cb'+i).classList.remove('error'); updateBoxes(); }, 350);
+    setTimeout(function(){e.classList.remove('show');}, 2800);
+  }
+
+  var keys=[
+    {n:'1',s:''},{n:'2',s:'ABC'},{n:'3',s:'DEF'},
+    {n:'4',s:'GHI'},{n:'5',s:'JKL'},{n:'6',s:'MNO'},
+    {n:'7',s:'PQRS'},{n:'8',s:'TUV'},{n:'9',s:'WXYZ'},
+    {n:'',s:''},{n:'0',s:'+'},{n:'',s:''}
+  ];
+
+  function buildPad(){
+    var c=document.getElementById('verifyNumpad');
+    c.innerHTML='';
+    keys.forEach(function(k,i){
+      var btn=document.createElement('button');
+      btn.className='numpad-key';
+      if(i===9) btn.classList.add('empty');
+      if(i===11) btn.innerHTML='&larr;';
+      else if(k.s) btn.innerHTML='<span>'+k.n+'</span><span style="font-size:11px;color:#aaa;position:absolute;right:10px;bottom:6px;">'+k.s+'</span>';
+      else btn.textContent=k.n;
+      btn.style.position='relative';
+      btn.addEventListener('click', function(){onKey(i);});
+      c.appendChild(btn);
+    });
+  }
+
+  function onKey(idx){
+    var err=document.getElementById('errorText');
+    if(err.classList.contains('show')) err.classList.remove('show');
+    var filled=0;
+    for(var i=0;i<6;i++) if(codeArr[i]) filled++;
+    if(idx===11){ if(filled>0){ codeArr[filled-1]=''; updateBoxes(); } }
+    else if(idx!==9){ if(filled<6){ codeArr[filled]=keys[idx].n; updateBoxes(); if(filled+1===6) setTimeout(checkCode, 250); } }
+  }
+
+  function setupVerify(){
+    currentCode=genCode();
+    document.getElementById('verifySubtitle').innerHTML='我们已向邮箱 <b>'+currentEmail+'</b> 发送了一条包含验证码的消息';
+    codeArr=['','','','','',''];
+    updateBoxes();
+    document.getElementById('errorText').classList.remove('show');
+    sendCode(currentEmail, currentCode);
+  }
+
+  function checkCode(){
+    if(codeArr.join('')===currentCode){
+      showToast('验证成功！');
+      var user=users.find(function(u){return u.email===currentEmail;});
+      if(!user || !user.password){
+        setTimeout(function(){switchPage(pages.verify, pages.password);}, 400);
+      } else {
+        localStorage.setItem('tg_session', JSON.stringify({email:currentEmail, isLoggedIn:true}));
+        setTimeout(function(){showHome();}, 400);
+      }
+    } else {
+      showError('您输入的验证码无效，请重试。');
+    }
+  }
+
+  document.getElementById('submitBtn').addEventListener('click', function(){
+    var email=document.getElementById('emailInput').value.trim();
+    if(!email){ showToast('请输入邮箱'); return; }
+    if(!email.includes('@')){ showToast('邮箱格式错误'); return; }
+    currentEmail=email;
+    var existing=users.find(function(u){return u.email===email;});
+    if(existing){ showToast('欢迎回来'); }
+    else { showToast('请完成验证'); }
+    setupVerify();
+    switchPage(pages.login, pages.verify);
+  });
+
+  document.getElementById('backBtn').addEventListener('click', function(){
+    codeArr=['','','','','','']; updateBoxes();
+    document.getElementById('errorText').classList.remove('show');
+    switchPage(pages.verify, pages.login);
+  });
+
+  document.getElementById('resendBtn').addEventListener('click', function(){
+    setupVerify(); showToast('验证码已重新发送');
+  });
+
+  document.getElementById('passwordSubmitBtn').addEventListener('click', function(){
+    var p1=document.getElementById('passwordInput').value;
+    var p2=document.getElementById('confirmPasswordInput').value;
+    if(!p1 || p1.length<6){ showToast('密码至少6位'); return; }
+    if(p1!==p2){ showToast('两次密码不一致'); return; }
+    var idx=users.findIndex(function(u){return u.email===currentEmail;});
+    if(idx>=0) users[idx].password=p1;
+    else users.push({email:currentEmail, password:p1, created:Date.now()});
+    localStorage.setItem('tg_users_v2', JSON.stringify(users));
+    localStorage.setItem('tg_session', JSON.stringify({email:currentEmail, isLoggedIn:true}));
+    showToast('密码设置成功！');
+    setTimeout(function(){showHome();}, 400);
+  });
+
+  function renderHome(tab){
+    var content=document.getElementById('homeContent');
+    if(tab==='home'){
+      content.innerHTML =
+        '<div class="search-bar">'+
+          '<input type="text" class="search-input" placeholder="搜索影视、演员、导演">'+
+          '<button class="filter-btn">'+
+            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>'+
+            '筛选'+
+          '</button>'+
+        '</div>'+
+        '<div class="banner-wrap">'+
+          '<div class="banner-row" id="bannerRow">'+
+            '<div class="banner-item" style="background-image:url(https://picsum.photos/seed/movie1/800/450);">流浪地球3</div>'+
+            '<div class="banner-item" style="background-image:url(https://picsum.photos/seed/anime1/800/450);">进击的巨人 最终季</div>'+
+            '<div class="banner-item" style="background-image:url(https://picsum.photos/seed/drama1/800/450);">庆余年 第二季</div>'+
+            '<div class="banner-item" style="background-image:url(https://picsum.photos/seed/movie2/800/450);">满江红</div>'+
+          '</div>'+
+        '</div>'+
+        '<div class="banner-dots" id="bannerDots">'+
+          '<div class="banner-dot active"></div>'+
+          '<div class="banner-dot"></div>'+
+          '<div class="banner-dot"></div>'+
+          '<div class="banner-dot"></div>'+
+        '</div>'+
+        '<div class="category-chips">'+
+          '<div class="chip active">全部</div>'+
+          '<div class="chip">电影</div>'+
+          '<div class="chip">电视剧</div>'+
+          '<div class="chip">动漫</div>'+
+          '<div class="chip">综艺</div>'+
+          '<div class="chip">纪录片</div>'+
+        '</div>'+
+        '<div class="section-title">热播推荐<span class="more">更多 &rsaquo;</span></div>'+
+        '<div class="movie-row">'+
+          '<div class="movie-card"><div class="movie-poster" style="background-image:url(https://picsum.photos/seed/film1/220/310);"></div><div class="movie-name">长津湖</div></div>'+
+          '<div class="movie-card"><div class="movie-poster" style="background-image:url(https://picsum.photos/seed/film2/220/310);"></div><div class="movie-name">你好，李焕英</div></div>'+
+          '<div class="movie-card"><div class="movie-poster" style="background-image:url(https://picsum.photos/seed/film3/220/310);"></div><div class="movie-name">唐人街探案3</div></div>'+
+          '<div class="movie-card"><div class="movie-poster" style="background-image:url(https://picsum.photos/seed/film4/220/310);"></div><div class="movie-name">刺杀小说家</div></div>'+
+          '<div class="movie-card"><div class="movie-poster" style="background-image:url(https://picsum.photos/seed/film5/220/310);"></div><div class="movie-name">熊出没·狂野大陆</div></div>'+
+        '</div>'+
+        '<div class="section-title">最新上线<span class="more">更多 &rsaquo;</span></div>'+
+        '<div class="movie-grid">'+
+          '<div class="movie-card"><div class="movie-poster" style="background-image:url(https://picsum.photos/seed/new1/220/310);"></div><div class="movie-name">狂飙</div></div>'+
+          '<div class="movie-card"><div class="movie-poster" style="background-image:url(https://picsum.photos/seed/new2/220/310);"></div><div class="movie-name">三体</div></div>'+
+          '<div class="movie-card"><div class="movie-poster" style="background-image:url(https://picsum.photos/seed/new3/220/310);"></div><div class="movie-name">去有风的地方</div></div>'+
+          '<div class="movie-card"><div class="movie-poster" style="background-image:url(https://picsum.photos/seed/new4/220/310);"></div><div class="movie-name">鬼灭之刃</div></div>'+
+          '<div class="movie-card"><div class="movie-poster" style="background-image:url(https://picsum.photos/seed/new5/220/310);"></div><div class="movie-name">间谍过家家</div></div>'+
+          '<div class="movie-card"><div class="movie-poster" style="background-image:url(https://picsum.photos/seed/new6/220/310);"></div><div class="movie-name">咒术回战</div></div>'+
+        '</div>';
+      bannerIndex = 0;
+      var row = document.getElementById('bannerRow');
+      if(row) row.style.transform = 'translateX(0)';
+      startBannerAutoPlay();
+    } else if(tab==='favorite'){
+      stopBannerAutoPlay();
+      content.innerHTML='<div class="search-bar"><input type="text" class="search-input" placeholder="搜索收藏内容"></div>'+
+        '<div class="empty-tip">暂无收藏</div>';
+    } else if(tab==='settings'){
+      stopBannerAutoPlay();
+      content.innerHTML=
+        '<div class="profile-header">'+
+          '<div class="profile-avatar" style="background-image:url(https://picsum.photos/seed/avatar/120/120);"></div>'+
+          '<div class="profile-info">'+
+            '<div class="profile-name">影视会员</div>'+
+            '<div class="profile-email">'+currentEmail+'</div>'+
+          '</div>'+
+        '</div>'+
+        '<div class="profile-stats">'+
+          '<div class="stat-item"><div class="stat-num">12</div><div class="stat-label">收藏</div></div>'+
+          '<div class="stat-item"><div class="stat-num">28</div><div class="stat-label">观看历史</div></div>'+
+          '<div class="stat-item"><div class="stat-num">6</div><div class="stat-label">下载</div></div>'+
+        '</div>'+
+        '<div class="menu-list">'+
+          '<div class="menu-item">'+
+            '<svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>'+
+            '<span class="menu-text">个人资料</span>'+
+            '<span class="menu-arrow">›</span>'+
+          '</div>'+
+          '<div class="menu-item">'+
+            '<svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>'+
+            '<span class="menu-text">我的收藏</span>'+
+            '<span class="menu-arrow">›</span>'+
+          '</div>'+
+          '<div class="menu-item">'+
+            '<svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>'+
+            '<span class="menu-text">观看历史</span>'+
+            '<span class="menu-arrow">›</span>'+
+          '</div>'+
+          '<div class="menu-item">'+
+            '<svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>'+
+            '<span class="menu-text">我的下载</span>'+
+            '<span class="menu-arrow">›</span>'+
+          '</div>'+
+        '</div>'+
+        '<div style="height:12px;"></div>'+
+        '<div class="menu-list">'+
+          '<div class="menu-item">'+
+            '<svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>'+
+            '<span class="menu-text">设置</span>'+
+            '<span class="menu-arrow">›</span>'+
+          '</div>'+
+          '<div class="menu-item">'+
+            '<svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>'+
+            '<span class="menu-text">帮助与反馈</span>'+
+            '<span class="menu-arrow">›</span>'+
+          '</div>'+
+          '<div class="menu-item">'+
+            '<svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>'+
+            '<span class="menu-text">关于我们</span>'+
+            '<span class="menu-arrow">›</span>'+
+          '</div>'+
+        '</div>'+
+        '<div style="height:20px;"></div>'+
+        '<div class="menu-list" id="logoutCard">'+
+          '<div class="menu-item" style="justify-content:center;">'+
+            '<span style="color:#E53935; font-size:15px;">退出登录</span>'+
+          '</div>'+
+        '</div>';
+      setTimeout(function(){ var lo=document.getElementById('logoutCard'); if(lo) lo.addEventListener('click', doLogout); }, 50);
+    }
+  }
+
+  function doLogout(){
+    localStorage.removeItem('tg_session');
+    currentEmail=''; currentCode='';
+    document.getElementById('emailInput').value='';
+    codeArr=['','','','','','']; updateBoxes();
+    pages.home.classList.remove('active');
+    pages.login.classList.add('active');
+    showToast('已退出登录');
+  }
+
+  // Banner 自动轮播
+  var bannerIndex = 0;
+  var bannerTimer = null;
+  function startBannerAutoPlay(){
+    stopBannerAutoPlay();
+    bannerTimer = setInterval(function(){
+      var row = document.getElementById('bannerRow');
+      var items = document.querySelectorAll('.banner-item');
+      var dots = document.querySelectorAll('.banner-dot');
+      if(!items.length || !row) return;
+      bannerIndex = (bannerIndex + 1) % items.length;
+      row.style.transform = 'translateX(-' + (bannerIndex * 100) + '%)';
+      dots.forEach(function(d,i){
+        d.classList.toggle('active', i === bannerIndex);
+      });
+    }, 3000);
+  }
+  function stopBannerAutoPlay(){
+    if(bannerTimer){ clearInterval(bannerTimer); bannerTimer = null; }
+  }
+
+  var slider = document.getElementById('navSlider');
+  var nav = document.getElementById('bottomNav');
+  var isDragging = false;
+  var isAnimating = false;
+  var dragStartX = 0;
+  var dragStartLeft = 0;
+  var currentIndex = 0;
+
+  function getItemLeft(index){
+    var padLeft = 4;
+    var padRight = 4;
+    var itemW = (nav.clientWidth - padLeft - padRight) / 3;
+    return padLeft + index * itemW;
+  }
+
+  function getItemWidth(){
+    return (nav.clientWidth - 8) / 3;
+  }
+
+  function getSliderLeft(index){
+    var itemW = getItemWidth();
+    var sliderW = itemW - 8; // 左右各缩4px，和上下间距一样
+    return getItemLeft(index) + 4;
+  }
+
+  function getSliderWidth(){
+    return getItemWidth() - 8;
+  }
+
+  function setSliderLeft(left, w){
+    slider.style.left = left + 'px';
+    slider.style.width = w + 'px';
+  }
+
+  function selectNavItem(index){
+    if(index === currentIndex && !isDragging) return;
+
+    var items = document.querySelectorAll('.nav-item');
+    items.forEach(function(n){n.classList.remove('active');});
+    if(items[index]) items[index].classList.add('active');
+
+    var targetLeft = getSliderLeft(index);
+    var sliderW = getSliderWidth();
+
+    // 第一步：添加放大class
+    slider.classList.add('zoom');
+
+    // 第二步：100ms后滑动并移除放大（滑动过程中缩小）
+    setTimeout(function(){
+      slider.classList.remove('zoom');
+      setSliderLeft(targetLeft, sliderW);
+      currentIndex = index;
+    }, 120);
+
+    renderHome(items[index].dataset.page);
+  }
+
+  document.querySelectorAll('.nav-item').forEach(function(item){
+    item.addEventListener('click', function(){
+      var idx = parseInt(item.dataset.index);
+      selectNavItem(idx);
+    });
+  });
+
+  // 拖拽功能
+  function onDragStart(e){
+    isDragging = true;
+    var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    dragStartX = clientX;
+    dragStartLeft = parseFloat(slider.style.left) || getSliderLeft(0);
+    slider.style.transition = 'none';
+    slider.classList.add('zoom'); // 拖动时也放大
+    e.preventDefault();
+  }
+
+  function onDragMove(e){
+    if(!isDragging) return;
+    var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    var deltaX = clientX - dragStartX;
+    var newLeft = dragStartLeft + deltaX;
+    var sliderW = getSliderWidth();
+    var minLeft = getSliderLeft(0);
+    var maxLeft = getSliderLeft(2);
+    if(newLeft < minLeft) newLeft = minLeft;
+    if(newLeft > maxLeft) newLeft = maxLeft;
+    setSliderLeft(newLeft, sliderW);
+    e.preventDefault();
+  }
+
+  function onDragEnd(){
+    if(!isDragging) return;
+    isDragging = false;
+    slider.style.transition = '';
+    var itemW = getItemWidth();
+    var sliderW = getSliderWidth();
+    var left = parseFloat(slider.style.left);
+    var itemLeft = left - 4; // 滑块左边偏移对应item位置
+    var nearestIndex = Math.round((itemLeft - getItemLeft(0)) / itemW);
+    if(nearestIndex < 0) nearestIndex = 0;
+    if(nearestIndex > 2) nearestIndex = 2;
+
+    // 吸附到目标
+    var targetLeft = getSliderLeft(nearestIndex);
+    setSliderLeft(targetLeft, sliderW);
+
+    var items = document.querySelectorAll('.nav-item');
+    items.forEach(function(n){n.classList.remove('active');});
+    if(items[nearestIndex]) items[nearestIndex].classList.add('active');
+    currentIndex = nearestIndex;
+    renderHome(items[nearestIndex].dataset.page);
+    // 松手立即缩回，和滑动动画同步
+    slider.classList.remove('zoom');
+  }
+
+  slider.addEventListener('mousedown', onDragStart);
+  document.addEventListener('mousemove', onDragMove);
+  document.addEventListener('mouseup', onDragEnd);
+  slider.addEventListener('touchstart', onDragStart, {passive:false});
+  document.addEventListener('touchmove', onDragMove, {passive:false});
+  document.addEventListener('touchend', onDragEnd);
+
+  // 初始化
+  setTimeout(function(){
+    var sliderW = getSliderWidth();
+    setSliderLeft(getSliderLeft(0), sliderW);
+  }, 50);
+
+  buildPad();
+  if(!checkLogin()) pages.login.classList.add('active');
+})();
+</script>
+</body>
+</html>
