@@ -1085,8 +1085,9 @@ window.addEventListener('unhandledrejection', function(e){
   // ========== API 配置 ==========
   // 部署到Vercel后，改为你的Vercel域名，例如: 'https://your-app.vercel.app/api'
   // 本地开发时可以使用相对路径 '/api'
-  var API_BASE = https://bhk-rho.vercel.app/;
-  var useRealApi = true; // 设为true使用真实API，false使用本地数据
+  var API_BASE = '/api';
+  // 自动检测：http/https协议下启用真实API，file://协议下禁用
+  var useRealApi = (location.protocol === 'http:' || location.protocol === 'https:');
   
   // 详情缓存
   var detailCache = {};
@@ -3649,7 +3650,9 @@ window.addEventListener('unhandledrejection', function(e){
   }, 50);
 
   buildPad();
-  if(!checkLogin()) pages.login.classList.add('active');
+  // 直接进入首页，不用登录（方便看真实数据）
+  // if(!checkLogin()) pages.login.classList.add('active');
+  showHome();
 
   // 初始化应用主题
   if(userProfile.theme) applyTheme(userProfile.theme);
