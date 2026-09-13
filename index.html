@@ -1082,70 +1082,304 @@ window.addEventListener('unhandledrejection', function(e){
   var bridgeId = 0;
   var userProfile = JSON.parse(localStorage.getItem('tg_profile')||'{}');
 
-  // ========== API 配置 ==========
-  // 部署到Vercel后，改为你的Vercel域名，例如: 'https://your-app.vercel.app/api'
-  // 本地开发时可以使用相对路径 '/api'
-  var API_BASE = https://bhk-rho.vercel.app;
-  // 自动检测：http/https协议下启用真实API，file://协议下禁用
+  // ========== 纯前端API（CORS代理方案） ==========
+  // 数据源站点
+  var SITE_BASE = 'https://www.xcyycn.tv';
+  // CORS代理（公共免费代理）
+  var CORS_PROXY = 'https://corsproxy.io/?';
+  // 备用代理
+  var CORS_PROXY2 = 'https://api.allorigins.win/raw?url=';
+  // 当前使用的代理
+  var currentProxy = CORS_PROXY;
+  
+  // 自动启用（http/https下启用）
   var useRealApi = (location.protocol === 'http:' || location.protocol === 'https:');
   
   // 详情缓存
   var detailCache = {};
   
-  function apiRequest(path, params) {
+  // 通过CORS代理抓取HTML
+  function fetchHtml(url) {
     return new Promise(function(resolve, reject) {
-      var url = API_BASE + path;
-      if (params) {
-        var qs = Object.keys(params).map(function(k) {
-          return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
-        }).join('&');
-        if (qs) url += '?' + qs;
-      }
-      fetch(url, {
+      var proxyUrl = currentProxy + encodeURIComponent(url);
+      fetch(proxyUrl, {
         method: 'GET',
-        headers: { 'Accept': 'application/json' }
+        headers: { 'User-Agent': 'Mozilla/5.0' }
       }).then(function(res) {
-        return res.json();
-      }).then(function(data) {
-        if (data.code === 200) {
-          resolve(data.data);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.text();
+      }).then(resolve).catch(function(err) {
+        // 尝试备用代理
+        if (currentProxy === CORS_PROXY) {
+          currentProxy = CORS_PROXY2;
+          var proxyUrl2 = currentProxy + encodeURIComponent(url);
+          fetch(proxyUrl2).then(function(res) {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.text();
+          }).then(resolve).catch(reject);
         } else {
-          reject(new Error(data.msg || '请求失败'));
+          reject(err);
         }
+      });
+    });
+  }
+  
+  // 解析搜索结果页
+  function parseSearchList(html) {
+    var results = [];
+    var parser = new DOMParser();
+    var doc = parser.parseFromString(html, 'text/html');
+    
+    var items = doc.querySelectorAll('.hl-item, .video-list li, .list-item, .search-item, .module-item');
+    if (items.length === 0) {
+      // 尝试通用匹配
+      items = doc.querySelectorAll('li');
+    }
+    
+    items.forEach(function(item) {
+      var a = item.querySelector('a');
+      if (!a) return;
+      var href = a.getAttribute('href') || '';
+      var idMatch = href.match(/d-(\d+)\.html/);
+      if (!idMatch) return;
+      
+      var img = item.querySelector('img');
+      var cover = img ? (img.getAttribute('data-src') || img.getAttribute('src') || '') : '';
+      if (cover && cover.startsWith('//')) cover = 'https:' + cover;
+      if (cover && !cover.startsWith('http')) cover = SITE_BASE + cover;
+      
+      var name = '';
+      var nameEl = item.querySelector('.title, .name, h4, h3, .video-name');
+      if (nameEl) name = nameEl.textContent.trim();
+      if (!name && img) name = img.getAttribute('alt') || '';
+      if (!name) name = a.getAttribute('title') || '';
+      
+      var status = '';
+      var statusEl = item.querySelector('.status, .tag, .video-status, .bz');
+      if (statusEl) status = statusEl.textContent.trim();
+      
+      if (name && idMatch[1]) {
+        results.push({
+          id: idMatch[1],
+          name: name,
+          cover: cover,
+          status: status
+        });
+      }
+    });
+    
+    return results;
+  }
+  
+  // 解析详情页
+  function parseDetail(html) {
+    var parser = new DOMParser();
+    var doc = parser.parseFromString(html, 'text/html');
+    
+    var detail = {
+      id: '',
+      name: '',
+      cover: '',
+      year: '',
+      area: '',
+      director: '',
+      actors: '',
+      description: '',
+      status: '',
+      episodes: 0,
+      sources: []
+    };
+    
+    // 标题
+    var titleEl = doc.querySelector('.video-title h1, .detail-title h1, h1.title, .name h1');
+    if (titleEl) detail.name = titleEl.textContent.trim();
+    
+    // 封面
+    var coverEl = doc.querySelector('.video-pic img, .detail-pic img, .thumb img, .video-img img');
+    if (coverEl) {
+      var cover = coverEl.getAttribute('data-src') || coverEl.getAttribute('src') || '';
+      if (cover && cover.startsWith('//')) cover = 'https:' + cover;
+      if (cover && !cover.startsWith('http')) cover = SITE_BASE + cover;
+      detail.cover = cover;
+    }
+    
+    // 详情信息
+    var infoEl = doc.querySelector('.video-info, .detail-info, .video-msg, .info');
+    if (infoEl) {
+      var text = infoEl.innerHTML;
+      var yearMatch = text.match(/(\d{4})/);
+      if (yearMatch) detail.year = yearMatch[1];
+      
+      var items = infoEl.querySelectorAll('p, li, .info-item');
+      items.forEach(function(p) {
+        var t = p.textContent.trim();
+        if (t.indexOf('导演') > -1 || t.indexOf('导演：') > -1) {
+          detail.director = t.replace(/.*导演[：:]/, '').trim();
+        } else if (t.indexOf('主演') > -1 || t.indexOf('演员') > -1) {
+          detail.actors = t.replace(/.*(主演|演员)[：:]/, '').trim();
+        } else if (t.indexOf('地区') > -1 || t.indexOf('产地') > -1) {
+          detail.area = t.replace(/.*(地区|产地)[：:]/, '').trim();
+        } else if (t.indexOf('状态') > -1 || t.indexOf('更新') > -1) {
+          detail.status = t.replace(/.*(状态|更新)[：:]/, '').trim();
+        }
+      });
+    }
+    
+    // 简介
+    var descEl = doc.querySelector('.video-desc, .detail-desc, .introduction, .jianjie, .desc');
+    if (descEl) {
+      detail.description = descEl.textContent.trim().replace(/^简介[：:]/, '').trim();
+    }
+    
+    // 播放源和剧集
+    var sourceTabs = doc.querySelectorAll('.play-source li, .source-tab li, .tab-item, .playlist-tab li');
+    var playLists = doc.querySelectorAll('.playlist, .play-list, .video-list, .ep-list, .player_list');
+    
+    if (playLists.length > 0) {
+      playLists.forEach(function(list, idx) {
+        var sourceName = '线路' + (idx + 1);
+        if (sourceTabs[idx]) {
+          sourceName = sourceTabs[idx].textContent.trim();
+        }
+        
+        var episodes = [];
+        var epItems = list.querySelectorAll('a');
+        epItems.forEach(function(a) {
+          var epName = a.textContent.trim();
+          var epUrl = a.getAttribute('href') || '';
+          if (epUrl && !epUrl.startsWith('http')) {
+            epUrl = SITE_BASE + '/' + epUrl.replace(/^\//, '');
+          }
+          if (epName && epUrl) {
+            episodes.push({ name: epName, url: epUrl });
+          }
+        });
+        
+        if (episodes.length > 0) {
+          detail.sources.push({
+            name: sourceName,
+            quality: '1080p',
+            episodes: episodes
+          });
+        }
+      });
+    }
+    
+    // 计算总集数
+    if (detail.sources.length > 0) {
+      detail.episodes = detail.sources[0].episodes.length;
+    }
+    
+    return detail;
+  }
+  
+  // 解析播放页获取视频地址
+  function parsePlayPage(html) {
+    var videoUrl = '';
+    
+    // 尝试匹配各种播放器配置
+    var patterns = [
+      /["']url["']\s*:\s*["']([^"']+)["']/g,
+      /["']src["']\s*:\s*["']([^"']+\.m3u8[^"']*)["']/g,
+      /["']video["']\s*:\s*["']([^"']+)["']/g,
+      /player_aaaa\s*=\s*(\{[\s\S]*?\})/,
+      /var\s+vod_data\s*=\s*(\{[\s\S]*?\})/,
+      /<iframe[^>]+src=["']([^"']+)["']/g
+    ];
+    
+    for (var i = 0; i < patterns.length; i++) {
+      var match;
+      while ((match = patterns[i].exec(html)) !== null) {
+        var url = match[1];
+        if (url && (url.indexOf('.m3u8') > -1 || url.indexOf('.mp4') > -1 || url.indexOf('http') > -1)) {
+          if (url.indexOf('http') === 0 || url.indexOf('//') === 0) {
+            videoUrl = url;
+            break;
+          }
+        }
+      }
+      if (videoUrl) break;
+    }
+    
+    // 处理相对协议
+    if (videoUrl && videoUrl.startsWith('//')) {
+      videoUrl = 'https:' + videoUrl;
+    }
+    
+    return videoUrl;
+  }
+  
+  // 搜索API
+  function apiSearch(keyword, page) {
+    return new Promise(function(resolve, reject) {
+      var url = SITE_BASE + '/search.html?wd=' + encodeURIComponent(keyword);
+      if (page && page > 1) url += '&page=' + page;
+      
+      fetchHtml(url).then(function(html) {
+        var list = parseSearchList(html);
+        resolve({ list: list, total: list.length });
       }).catch(reject);
     });
   }
   
-  function apiSearch(keyword, page) {
-    return apiRequest('/search', { wd: keyword, page: page || 1 });
-  }
-  
+  // 首页API
   function apiHome(type, page) {
-    return apiRequest('/home', { type: type || 'guoman', page: page || 1 });
+    return new Promise(function(resolve, reject) {
+      // 国产动漫分类
+      var url = SITE_BASE + '/s-1.html';
+      if (page && page > 1) url = SITE_BASE + '/s-1-' + page + '.html';
+      
+      fetchHtml(url).then(function(html) {
+        var list = parseSearchList(html);
+        // 取前12个作为首页推荐
+        var banner = list.slice(0, 5);
+        var recommend = list.slice(0, 12);
+        resolve({ banner: banner, recommend: recommend, list: list });
+      }).catch(reject);
+    });
   }
   
+  // 详情API
   function apiDetail(id) {
     if (detailCache[id]) {
       return Promise.resolve(detailCache[id]);
     }
-    return apiRequest('/detail', { id: id }).then(function(data) {
-      detailCache[id] = data;
-      return data;
+    return new Promise(function(resolve, reject) {
+      var url = SITE_BASE + '/d-' + id + '.html';
+      
+      fetchHtml(url).then(function(html) {
+        var detail = parseDetail(html);
+        detail.id = id;
+        detailCache[id] = detail;
+        resolve(detail);
+      }).catch(reject);
     });
   }
   
+  // 获取视频真实播放地址
+  function apiVideoUrl(playPageUrl) {
+    return new Promise(function(resolve, reject) {
+      fetchHtml(playPageUrl).then(function(html) {
+        var url = parsePlayPage(html);
+        resolve(url);
+      }).catch(reject);
+    });
+  }
+  
+  // 图片代理URL（直接用CORS代理）
   function getImageProxyUrl(imgUrl) {
     if (!imgUrl) return '';
     if (imgUrl.startsWith('http')) {
-      return API_BASE + '/image?url=' + encodeURIComponent(imgUrl);
+      return currentProxy + encodeURIComponent(imgUrl);
     }
     return imgUrl;
   }
   
+  // 视频代理URL（直接用CORS代理）
   function getVideoProxyUrl(videoUrl) {
     if (!videoUrl) return '';
     if (videoUrl.startsWith('http')) {
-      return API_BASE + '/video?url=' + encodeURIComponent(videoUrl);
+      return currentProxy + encodeURIComponent(videoUrl);
     }
     return videoUrl;
   }
@@ -2285,27 +2519,36 @@ window.addEventListener('unhandledrejection', function(e){
     if(currentSourceIndex >= sources.length) currentSourceIndex = 0;
     var source = sources[currentSourceIndex];
     
-    // 获取当前集的视频URL
-    var videoUrl = '';
+    // 获取当前集的播放页URL
+    var playPageUrl = '';
+    var epName = '';
     if (source.episodes && source.episodes.length > 0) {
-      var epItem = source.episodes.find(function(e) { return e.num === currentEp; });
-      if (epItem) {
-        videoUrl = epItem.url;
-      } else if (source.episodes[0]) {
-        videoUrl = source.episodes[0].url;
-        currentEp = source.episodes[0].num;
+      // 用索引找，因为ep可能是数字也可能是名称
+      var epIndex = currentEp - 1;
+      if (typeof currentEp === 'string') {
+        // 如果是字符串名称，找匹配的
+        for (var ei = 0; ei < source.episodes.length; ei++) {
+          if (source.episodes[ei].name === currentEp) {
+            epIndex = ei;
+            break;
+          }
+        }
       }
+      if (epIndex < 0) epIndex = 0;
+      if (epIndex >= source.episodes.length) epIndex = source.episodes.length - 1;
+      var epItem = source.episodes[epIndex];
+      playPageUrl = epItem.url;
+      epName = epItem.name;
+      currentEp = epIndex + 1;
     } else {
-      videoUrl = source.url;
+      playPageUrl = source.url;
+      epName = '正片';
     }
     
-    if (!videoUrl) {
+    if (!playPageUrl) {
       showToast('暂无该集播放地址', 'error');
       return;
     }
-    
-    // 使用代理URL
-    var proxiedUrl = getVideoProxyUrl(videoUrl);
     
     // 打开播放器页面
     var page = document.getElementById('playerPage');
@@ -2315,7 +2558,7 @@ window.addEventListener('unhandledrejection', function(e){
     var mtitleEl = document.getElementById('playerMovieTitle');
     if(mtitleEl) mtitleEl.textContent = m.name;
     var epTitleEl = document.getElementById('playerEpTitle');
-    if(epTitleEl) epTitleEl.textContent = m.episodes > 0 ? '第'+currentEp+'集' : '正片';
+    if(epTitleEl) epTitleEl.textContent = epName;
     
     // 生成播放线路列表
     var sourceList = document.getElementById('playerSourceList');
@@ -2342,21 +2585,12 @@ window.addEventListener('unhandledrejection', function(e){
     var epList = document.getElementById('playerEpList');
     var epSec = document.getElementById('playerEpSection');
     if(epList && epSec){
-      if(m.episodes > 0 || (source.episodes && source.episodes.length > 0)){
+      if(source.episodes && source.episodes.length > 0){
         epSec.style.display = 'block';
         var epHtml = '';
-        var epCount = m.episodes || (source.episodes ? source.episodes.length : 0);
-        // 如果有详细的集数数据，使用实际集数
-        var actualEps = source.episodes || [];
-        if (actualEps.length > 0) {
-          for(var j = 0; j < actualEps.length; j++){
-            var epNum = actualEps[j].num;
-            epHtml += '<div class="ep-item '+(epNum===currentEp?'active':'')+'" data-ep="'+epNum+'">第'+epNum+'集</div>';
-          }
-        } else {
-          for(var k = 1; k <= epCount; k++){
-            epHtml += '<div class="ep-item '+(k===currentEp?'active':'')+'" data-ep="'+k+'">第'+k+'集</div>';
-          }
+        for(var j = 0; j < source.episodes.length; j++){
+          var isActive = (j + 1 === currentEp);
+          epHtml += '<div class="ep-item '+(isActive?'active':'')+'" data-ep="'+(j+1)+'">'+source.episodes[j].name+'</div>';
         }
         epList.innerHTML = epHtml;
       } else {
@@ -2366,15 +2600,26 @@ window.addEventListener('unhandledrejection', function(e){
     
     page.classList.add('active');
     try { updateQualityBtn(); } catch(e){}
-    showToast('正在加载'+source.name+'...', 'info');
+    showToast('正在解析视频地址...', 'info');
     
-    // 播放视频
-    setTimeout(function(){ 
+    // 解析播放页获取真实视频地址，然后播放
+    apiVideoUrl(playPageUrl).then(function(videoUrl) {
+      if (!videoUrl) {
+        showToast('解析视频地址失败', 'error');
+        return;
+      }
+      // 使用代理URL
+      var proxiedUrl = getVideoProxyUrl(videoUrl);
+      showToast('正在加载'+source.name+'...', 'info');
       try { loadVideo(proxiedUrl); } catch(e){
         console.log('加载视频错误:', e);
         showToast('视频加载失败', 'error');
       }
-    }, 100);
+    }).catch(function(err) {
+      console.log('解析视频地址错误:', err);
+      showToast('解析失败：' + err.message, 'error');
+    });
+    
     } catch(e){
       console.log('playMovieWithData错误:', e);
       showToast('播放失败：' + e.message, 'error');
